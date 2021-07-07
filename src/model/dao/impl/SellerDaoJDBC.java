@@ -1,10 +1,14 @@
 package model.dao.impl;
 
+import java.security.DrbgParameters.Instantiation;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import db.DB;
 import db.DbException;
@@ -58,16 +62,8 @@ public class SellerDaoJDBC implements SellerDao {
 			st.setInt(1, id);
 			rs = st.executeQuery();
 			if(rs.next()) {
-				Departament dep = new Departament();
-				dep.setId(rs.getInt("DepartmentId"));
-				dep.setName(rs.getString("DepName"));
-				Saller obj = new Saller();
-				obj.setId(rs.getInt("Id"));
-				obj.setName(rs.getString("Name"));
-				obj.setEmai(rs.getString("Email"));
-				obj.setBaseSalary(rs.getDouble("BaseSalary"));
-				obj.setBirthDate(rs.getDate("BirthDate"));
-				obj.setDepartament(dep);
+				Departament dep = instanteateDepartment(rs);
+				Saller obj = instanteateSeller(rs , dep);
 				return obj;
 			}
 			return null;
@@ -82,6 +78,66 @@ public class SellerDaoJDBC implements SellerDao {
 			
 		}
 				
+	}
+
+	private Saller instanteateSeller(ResultSet rs, Departament dep) throws SQLException {
+		Saller obj = new Saller();
+		obj.setId(rs.getInt("Id"));
+		obj.setName(rs.getString("Name"));
+		obj.setEmai(rs.getString("Email"));
+		obj.setBaseSalary(rs.getDouble("BaseSalary"));
+		obj.setBirthDate(rs.getDate("BirthDate"));
+		obj.setDepartament(dep);
+		return obj;
+	}
+
+	private Departament instanteateDepartment(ResultSet rs) throws SQLException {
+		Departament dep = new Departament();
+		dep.setId(rs.getInt("DepartmentId"));
+		dep.setName(rs.getString("DepName"));
+		return dep;
+	}
+
+	@Override
+	public List<Saller> findByDepartment(Departament department) {
+		PreparedStatement st = null;
+		ResultSet rs = null;
+		try {
+			st = conn.prepareStatement(
+					"SELECT seller.*,department.Name as DepName "
+					+ "FROM seller INNER JOIN department "
+					+ "ON seller.DepartmentId = department.Id "
+					+"WHERE DepartmentId = ? "
+					+ "ORDER BY Name");
+			
+			st.setInt(1, department.getId());
+			rs = st.executeQuery();
+			
+			List<Saller> list = new ArrayList<>();
+			Map<Integer, Departament> map = new HashMap<>();
+			
+			while (rs.next()) {
+				Departament dep = map.get(rs.getInt("DepartmentId"));
+				
+				if (dep == null) {
+					dep = instanteateDepartment(rs);
+					map.put(rs.getInt("DepartmentId"), dep);
+				}
+				
+				Saller obj = instanteateSeller(rs , dep);
+				list.add(obj);
+			}
+			return list;
+			
+		}
+		catch (SQLException e) {
+			throw new DbException(e.getMessage());
+		}
+		finally {
+			DB.closeStatement(st);
+			DB.closeResultSet(rs);
+			
+		}
 	}
 
 }
